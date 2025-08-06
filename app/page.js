@@ -23,7 +23,7 @@ import {
   Palette,
   Globe,
   Layers,
-  Magic,
+  Wand2 as Magic,
   Rocket
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
