@@ -37,9 +37,9 @@ class AICodeGeneratorAPITester:
 
     def test_health_check(self):
         """Test GET /api/ - Basic health check"""
-        print("🔍 Testing Health Check Endpoint (GET /api/)")
+        print("🔍 Testing Health Check Endpoint (GET /api)")
         try:
-            response = self.session.get(f"{self.base_url}/")
+            response = self.session.get(f"{self.base_url}")
             
             if response.status_code == 200:
                 data = response.json()
