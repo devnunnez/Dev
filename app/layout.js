@@ -1,13 +1,13 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'AI Code Generator - Build Apps with AI',
-  description: 'Generate full-stack applications using AI - React, Node.js, MongoDB. Inspired by Lovable.dev',
+  title: 'Gerador de Código IA - Construa Apps com IA',
+  description: 'Gere aplicações full-stack usando IA - React, Node.js, MongoDB. Inspirado no Lovable.dev',
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="pt-BR" className="dark">
       <body className="antialiased bg-background text-foreground">
         {children}
       </body>

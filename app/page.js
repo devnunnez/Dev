@@ -24,7 +24,10 @@ import {
   Globe,
   Layers,
   Wand2 as Magic,
-  Rocket
+  Rocket,
+  MessageCircle,
+  Settings,
+  RefreshCw
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 
@@ -36,6 +39,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('chat')
   const [projectType, setProjectType] = useState('component')
   const [previewUrl, setPreviewUrl] = useState('')
+  const [currentModel, setCurrentModel] = useState('Carregando...')
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -45,6 +49,23 @@ export default function App() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    // Verificar status da API ao carregar
+    checkApiStatus()
+  }, [])
+
+  const checkApiStatus = async () => {
+    try {
+      const response = await fetch('/api/')
+      const data = await response.json()
+      if (data.currentModel) {
+        setCurrentModel(data.currentModel)
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status da API:', error)
+    }
+  }
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return
@@ -69,7 +90,7 @@ export default function App() {
         body: JSON.stringify({
           message: inputValue,
           projectType: projectType,
-          conversationHistory: messages.slice(-5) // Last 5 messages for context
+          conversationHistory: messages.slice(-5) // Últimas 5 mensagens para contexto
         }),
       })
 
@@ -88,18 +109,23 @@ export default function App() {
         setGeneratedCode(data.code)
         setActiveTab('code')
         
-        // Generate preview if it's a React component
+        // Atualizar modelo atual se fornecido
+        if (data.model) {
+          setCurrentModel(data.model)
+        }
+        
+        // Gerar preview se for um componente React
         if (data.code && projectType === 'component') {
           generatePreview(data.code)
         }
       } else {
-        throw new Error(data.error || 'Failed to generate code')
+        throw new Error(data.error || 'Falha ao gerar código')
       }
     } catch (error) {
       const errorMessage = {
         id: Date.now() + 1,
         type: 'error',
-        content: `Error: ${error.message}`,
+        content: `Erro: ${error.message}`,
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
@@ -123,23 +149,23 @@ export default function App() {
         setPreviewUrl(data.previewUrl)
       }
     } catch (error) {
-      console.error('Preview generation failed:', error)
+      console.error('Falha na geração do preview:', error)
     }
   }
 
   const projectTypes = [
-    { id: 'component', label: 'React Component', icon: <Code className="w-4 h-4" /> },
-    { id: 'fullstack', label: 'Full-Stack App', icon: <Layers className="w-4 h-4" /> },
-    { id: 'frontend', label: 'Frontend App', icon: <Palette className="w-4 h-4" /> },
-    { id: 'backend', label: 'Backend API', icon: <Database className="w-4 h-4" /> },
+    { id: 'component', label: 'Componente React', icon: <Code className="w-4 h-4" /> },
+    { id: 'fullstack', label: 'App Full-Stack', icon: <Layers className="w-4 h-4" /> },
+    { id: 'frontend', label: 'App Frontend', icon: <Palette className="w-4 h-4" /> },
+    { id: 'backend', label: 'API Backend', icon: <Database className="w-4 h-4" /> },
   ]
 
   const examplePrompts = [
-    "Create a modern todo app with drag and drop functionality",
-    "Build a dashboard with charts and analytics",
-    "Make a beautiful landing page for a SaaS product",
-    "Create a chat application with real-time messaging",
-    "Build a blog platform with markdown support"
+    "Crie um app de tarefas moderno com funcionalidade de arrastar e soltar",
+    "Construa um dashboard com gráficos e análises",
+    "Faça uma landing page bonita para um produto SaaS",
+    "Crie uma aplicação de chat com mensagens em tempo real",
+    "Construa uma plataforma de blog com suporte a markdown"
   ]
 
   return (
@@ -153,24 +179,24 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                AI Code Generator
+                Gerador de Código IA
               </h1>
-              <p className="text-sm text-muted-foreground">Build full-stack apps with AI assistance</p>
+              <p className="text-sm text-muted-foreground">Construa apps full-stack com assistência de IA</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="gap-1">
               <Zap className="w-3 h-3" />
-              OpenAI GPT-4
+              {currentModel}
             </Badge>
             <Badge variant="outline" className="gap-1">
               <Rocket className="w-3 h-3" />
-              Live Preview
+              Preview em Tempo Real
             </Badge>
           </div>
         </header>
 
-        {/* Project Type Selector */}
+        {/* Seletor de Tipo de Projeto */}
         <div className="mb-4">
           <div className="flex gap-2 flex-wrap">
             {projectTypes.map((type) => (
@@ -188,28 +214,28 @@ export default function App() {
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* Conteúdo Principal */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
-          {/* Chat Section */}
+          {/* Seção de Chat */}
           <Card className="flex flex-col h-full">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Bot className="w-5 h-5" />
-                AI Assistant
+                Assistente de IA
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col min-h-0 p-0">
-              {/* Messages */}
+              {/* Mensagens */}
               <ScrollArea className="flex-1 p-4">
                 {messages.length === 0 ? (
                   <div className="text-center py-8">
                     <Sparkles className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-medium mb-2">Welcome to AI Code Generator!</h3>
+                    <h3 className="text-lg font-medium mb-2">Bem-vindo ao Gerador de Código IA!</h3>
                     <p className="text-muted-foreground mb-6">
-                      Describe what you want to build and I'll generate the code for you.
+                      Descreva o que você quer construir e eu vou gerar o código para você.
                     </p>
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-left">Try these examples:</p>
+                      <p className="text-sm font-medium text-left">Experimente estes exemplos:</p>
                       {examplePrompts.map((prompt, index) => (
                         <Button
                           key={index}
@@ -252,7 +278,7 @@ export default function App() {
                               <div className="mt-2">
                                 <Badge variant="secondary" className="mb-2">
                                   <FileCode className="w-3 h-3 mr-1" />
-                                  Generated Code
+                                  Código Gerado
                                 </Badge>
                               </div>
                             )}
@@ -270,7 +296,7 @@ export default function App() {
                         <div className="bg-muted rounded-lg p-3 mr-2">
                           <div className="flex items-center gap-2">
                             <div className="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></div>
-                            <span className="text-sm">Generating code...</span>
+                            <span className="text-sm">Gerando código...</span>
                           </div>
                         </div>
                       </div>
@@ -280,13 +306,13 @@ export default function App() {
                 )}
               </ScrollArea>
 
-              {/* Input */}
+              {/* Entrada */}
               <div className="p-4 border-t">
                 <div className="flex gap-2">
                   <Input
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="Describe what you want to build..."
+                    placeholder="Descreva o que você quer construir..."
                     onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                     className="flex-1"
                   />
@@ -302,22 +328,22 @@ export default function App() {
             </CardContent>
           </Card>
 
-          {/* Code Editor & Preview Section */}
+          {/* Seção do Editor de Código e Preview */}
           <Card className="flex flex-col h-full">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Code className="w-5 h-5" />
-                  Code Editor
+                  Editor de Código
                 </CardTitle>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" className="gap-1">
                     <Play className="w-3 h-3" />
-                    Run
+                    Executar
                   </Button>
                   <Button size="sm" variant="outline" className="gap-1">
                     <Download className="w-3 h-3" />
-                    Export
+                    Exportar
                   </Button>
                 </div>
               </div>
@@ -326,12 +352,12 @@ export default function App() {
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
                 <TabsList className="mx-4 mb-2">
                   <TabsTrigger value="chat" className="gap-1">
-                    <Bot className="w-3 h-3" />
+                    <MessageCircle className="w-3 h-3" />
                     Chat
                   </TabsTrigger>
                   <TabsTrigger value="code" className="gap-1">
                     <FileCode className="w-3 h-3" />
-                    Code
+                    Código
                   </TabsTrigger>
                   <TabsTrigger value="preview" className="gap-1">
                     <Globe className="w-3 h-3" />
@@ -343,9 +369,9 @@ export default function App() {
                   <div className="h-full flex items-center justify-center text-center">
                     <div>
                       <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                      <h3 className="text-lg font-medium mb-2">Chat with AI</h3>
+                      <h3 className="text-lg font-medium mb-2">Converse com a IA</h3>
                       <p className="text-muted-foreground">
-                        Start a conversation to generate code
+                        Inicie uma conversa para gerar código
                       </p>
                     </div>
                   </div>
@@ -356,7 +382,7 @@ export default function App() {
                     <Editor
                       height="100%"
                       defaultLanguage="javascript"
-                      value={generatedCode || '// Generated code will appear here...'}
+                      value={generatedCode || '// O código gerado aparecerá aqui...'}
                       onChange={(value) => setGeneratedCode(value)}
                       theme="vs-dark"
                       options={{
@@ -378,14 +404,14 @@ export default function App() {
                       <iframe 
                         src={previewUrl} 
                         className="w-full h-full rounded-lg border"
-                        title="Code Preview"
+                        title="Preview do Código"
                       />
                     ) : (
                       <div className="text-center">
                         <Globe className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                        <h3 className="text-lg font-medium mb-2">Live Preview</h3>
+                        <h3 className="text-lg font-medium mb-2">Preview em Tempo Real</h3>
                         <p className="text-muted-foreground">
-                          Generate code to see live preview
+                          Gere código para ver o preview em tempo real
                         </p>
                       </div>
                     )}

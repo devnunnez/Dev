@@ -2,6 +2,7 @@ import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 // MongoDB connection
 let client
@@ -16,10 +17,12 @@ async function connectToMongo() {
   return db
 }
 
-// Initialize OpenAI
+// Initialize AI services
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 // Helper function to handle CORS
 function handleCORS(response) {
@@ -35,46 +38,46 @@ export async function OPTIONS() {
   return handleCORS(new NextResponse(null, { status: 200 }))
 }
 
-// AI Code Generation Service
+// AI Code Generation Service with fallback
 async function generateCode(prompt, projectType, conversationHistory = []) {
   const systemPrompts = {
-    component: `You are an expert React developer. Generate clean, modern React components using:
-- Functional components with hooks
-- Tailwind CSS for styling
-- TypeScript when appropriate
-- Best practices for accessibility
-- Clean, readable code
+    component: `Você é um desenvolvedor React especialista. Gere componentes React limpos e modernos usando:
+- Componentes funcionais com hooks
+- Tailwind CSS para estilização
+- TypeScript quando apropriado
+- Melhores práticas de acessibilidade
+- Código limpo e legível
 
-Always provide working, complete code that can be used immediately.`,
+Sempre forneça código funcional e completo que possa ser usado imediatamente.`,
 
-    fullstack: `You are an expert full-stack developer. Generate complete applications with:
-- React frontend with modern hooks
-- Node.js/Express backend APIs
-- MongoDB database schemas
-- Proper error handling
-- Security best practices
-- Clean architecture
+    fullstack: `Você é um desenvolvedor full-stack especialista. Gere aplicações completas com:
+- Frontend React com hooks modernos
+- APIs Node.js/Express backend
+- Esquemas de banco MongoDB
+- Tratamento adequado de erros
+- Melhores práticas de segurança
+- Arquitetura limpa
 
-Provide both frontend and backend code.`,
+Forneça código tanto do frontend quanto do backend.`,
 
-    frontend: `You are an expert frontend developer. Create beautiful, responsive web applications using:
-- Modern React with hooks
-- Tailwind CSS or styled-components
-- Responsive design
-- Performance optimization
-- Accessibility standards
+    frontend: `Você é um desenvolvedor frontend especialista. Crie aplicações web bonitas e responsivas usando:
+- React moderno com hooks
+- Tailwind CSS ou styled-components
+- Design responsivo
+- Otimização de performance
+- Padrões de acessibilidade
 
-Focus on user experience and visual appeal.`,
+Foque na experiência do usuário e apelo visual.`,
 
-    backend: `You are an expert backend developer. Create robust API services with:
-- Node.js/Express servers
-- MongoDB database operations
-- Proper error handling
-- Input validation
-- Security measures
-- RESTful design principles
+    backend: `Você é um desenvolvedor backend especialista. Crie serviços de API robustos com:
+- Servidores Node.js/Express
+- Operações de banco MongoDB
+- Tratamento adequado de erros
+- Validação de entrada
+- Medidas de segurança
+- Princípios de design RESTful
 
-Provide complete, production-ready backend code.`
+Forneça código backend completo e pronto para produção.`
   }
 
   const contextMessages = conversationHistory.map(msg => ({
@@ -82,6 +85,9 @@ Provide complete, production-ready backend code.`
     content: msg.content
   }))
 
+  const fullPrompt = `${prompt}\n\nPor favor, forneça:\n1. Uma breve explicação do que você está construindo\n2. Código completo e funcional\n3. Instruções de configuração, se necessário\n\nResponda em português.`
+
+  // Try OpenAI first
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4-turbo-preview",
@@ -93,7 +99,7 @@ Provide complete, production-ready backend code.`
         ...contextMessages,
         {
           role: "user",
-          content: `${prompt}\n\nPlease provide:\n1. A brief explanation of what you're building\n2. Complete, working code\n3. Any setup instructions if needed`
+          content: fullPrompt
         }
       ],
       temperature: 0.7,
@@ -115,15 +121,320 @@ Provide complete, production-ready backend code.`
       success: true,
       explanation: explanation || response,
       code: code || response,
-      model: 'gpt-4-turbo'
+      model: 'OpenAI GPT-4'
     }
-  } catch (error) {
-    console.error('OpenAI API Error:', error)
-    return {
-      success: false,
-      error: error.message || 'Failed to generate code'
+  } catch (openaiError) {
+    console.log('OpenAI failed, trying Gemini...', openaiError.message)
+    
+    // Fallback to Gemini
+    try {
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" })
+      
+      const systemContext = systemPrompts[projectType] || systemPrompts.component
+      const fullContextPrompt = `${systemContext}\n\n${fullPrompt}`
+      
+      const result = await model.generateContent(fullContextPrompt)
+      const response = result.response.text()
+      
+      // Extract code blocks from the response
+      const codeBlocks = response.match(/```[\s\S]*?```/g) || []
+      const code = codeBlocks.length > 0 ? 
+        codeBlocks.map(block => block.replace(/```[\w]*\n?/, '').replace(/\n?```$/, '')).join('\n\n') : 
+        ''
+      
+      // Extract explanation (text before first code block)
+      const explanation = response.split('```')[0].trim()
+
+      return {
+        success: true,
+        explanation: explanation || response,
+        code: code || response,
+        model: 'Google Gemini'
+      }
+    } catch (geminiError) {
+      console.log('Gemini failed, trying DeepSeek...', geminiError.message)
+      
+      // Fallback to DeepSeek (via OpenAI-compatible API)
+      try {
+        const deepseekOpenAI = new OpenAI({
+          apiKey: process.env.DEEPSEEK_API_KEY,
+          baseURL: 'https://api.deepseek.com'
+        })
+
+        const completion = await deepseekOpenAI.chat.completions.create({
+          model: "deepseek-chat",
+          messages: [
+            {
+              role: "system",
+              content: systemPrompts[projectType] || systemPrompts.component
+            },
+            ...contextMessages,
+            {
+              role: "user",
+              content: fullPrompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 3000,
+        })
+
+        const response = completion.choices[0].message.content
+        
+        // Extract code blocks from the response
+        const codeBlocks = response.match(/```[\s\S]*?```/g) || []
+        const code = codeBlocks.length > 0 ? 
+          codeBlocks.map(block => block.replace(/```[\w]*\n?/, '').replace(/\n?```$/, '')).join('\n\n') : 
+          ''
+        
+        // Extract explanation (text before first code block)
+        const explanation = response.split('```')[0].trim()
+
+        return {
+          success: true,
+          explanation: explanation || response,
+          code: code || response,
+          model: 'DeepSeek'
+        }
+      } catch (deepseekError) {
+        console.log('DeepSeek failed, using fallback response...', deepseekError.message)
+        
+        // Final fallback - generate a basic template
+        const fallbackCode = generateFallbackCode(projectType, prompt)
+        return {
+          success: true,
+          explanation: `Gerei um código básico baseado no seu pedido: "${prompt}". Este é um template inicial que você pode customizar.`,
+          code: fallbackCode,
+          model: 'Template Interno'
+        }
+      }
     }
   }
+}
+
+// Generate basic fallback code when all AI services fail
+function generateFallbackCode(projectType, prompt) {
+  const templates = {
+    component: `import React, { useState } from 'react'
+
+// Componente gerado para: ${prompt}
+export default function MeuComponente() {
+  const [count, setCount] = useState(0)
+  
+  return (
+    <div className="p-6 max-w-md mx-auto bg-white rounded-xl shadow-lg">
+      <h2 className="text-xl font-bold text-gray-900 mb-4">
+        Meu Componente
+      </h2>
+      <p className="text-gray-600 mb-4">
+        Este é um componente básico baseado em: {prompt}
+      </p>
+      <button 
+        onClick={() => setCount(count + 1)}
+        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+      >
+        Contador: {count}
+      </button>
+    </div>
+  )
+}`,
+    
+    frontend: `import React, { useState, useEffect } from 'react'
+
+// Aplicação frontend para: ${prompt}
+function App() {
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+  
+  useEffect(() => {
+    // Simular carregamento de dados
+    setTimeout(() => {
+      setData(['Item 1', 'Item 2', 'Item 3'])
+      setLoading(false)
+    }, 1000)
+  }, [])
+  
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <header className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Aplicação Frontend
+          </h1>
+          <p className="text-gray-600">${prompt}</p>
+        </div>
+      </header>
+      
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        {loading ? (
+          <div className="text-center">Carregando...</div>
+        ) : (
+          <div className="grid gap-4">
+            {data.map((item, index) => (
+              <div key={index} className="bg-white p-4 rounded shadow">
+                {item}
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  )
+}
+
+export default App`,
+
+    backend: `const express = require('express')
+const { MongoClient } = require('mongodb')
+const cors = require('cors')
+
+// API Backend para: ${prompt}
+const app = express()
+const PORT = process.env.PORT || 3000
+
+app.use(cors())
+app.use(express.json())
+
+// Conexão com MongoDB
+let db
+
+async function connectDB() {
+  const client = new MongoClient(process.env.MONGO_URL)
+  await client.connect()
+  db = client.db('minha_aplicacao')
+}
+
+// Rota principal
+app.get('/api', (req, res) => {
+  res.json({ 
+    message: 'API funcionando!',
+    description: '${prompt}'
+  })
+})
+
+// CRUD endpoints
+app.get('/api/items', async (req, res) => {
+  try {
+    const items = await db.collection('items').find({}).toArray()
+    res.json(items)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.post('/api/items', async (req, res) => {
+  try {
+    const result = await db.collection('items').insertOne(req.body)
+    res.json({ id: result.insertedId, ...req.body })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Iniciar servidor
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(\`Servidor rodando na porta \${PORT}\`)
+  })
+})`,
+
+    fullstack: `// Frontend - React App
+import React, { useState, useEffect } from 'react'
+
+function App() {
+  const [items, setItems] = useState([])
+  const [newItem, setNewItem] = useState('')
+  
+  // Carregar itens da API
+  useEffect(() => {
+    fetchItems()
+  }, [])
+  
+  const fetchItems = async () => {
+    try {
+      const response = await fetch('/api/items')
+      const data = await response.json()
+      setItems(data)
+    } catch (error) {
+      console.error('Erro ao carregar items:', error)
+    }
+  }
+  
+  const addItem = async () => {
+    if (!newItem.trim()) return
+    
+    try {
+      const response = await fetch('/api/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newItem })
+      })
+      
+      if (response.ok) {
+        setNewItem('')
+        fetchItems()
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar item:', error)
+    }
+  }
+  
+  return (
+    <div className="p-8 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">App Full-Stack</h1>
+      <p className="text-gray-600 mb-4">${prompt}</p>
+      
+      <div className="mb-6">
+        <input
+          type="text"
+          value={newItem}
+          onChange={(e) => setNewItem(e.target.value)}
+          className="border rounded px-3 py-2 mr-2"
+          placeholder="Adicionar item..."
+        />
+        <button
+          onClick={addItem}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Adicionar
+        </button>
+      </div>
+      
+      <div className="space-y-2">
+        {items.map((item, index) => (
+          <div key={index} className="bg-gray-100 p-3 rounded">
+            {item.name}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default App
+
+// Backend - API Server (código separado)
+/*
+const express = require('express')
+const app = express()
+app.use(express.json())
+
+let items = []
+
+app.get('/api/items', (req, res) => {
+  res.json(items)
+})
+
+app.post('/api/items', (req, res) => {
+  const item = { id: Date.now(), ...req.body }
+  items.push(item)
+  res.json(item)
+})
+
+app.listen(3001, () => console.log('API rodando na porta 3001'))
+*/`
+  }
+  
+  return templates[projectType] || templates.component
 }
 
 // Route handler function
@@ -138,9 +449,10 @@ async function handleRoute(request, { params }) {
     // Root endpoint
     if (route === '/' && method === 'GET') {
       return handleCORS(NextResponse.json({ 
-        message: "AI Code Generator API",
-        status: "running",
-        services: ["OpenAI GPT-4", "MongoDB", "Code Generation"]
+        message: "API do Gerador de Código IA",
+        status: "funcionando",
+        services: ["OpenAI GPT-4", "Google Gemini", "DeepSeek", "MongoDB"],
+        currentModel: "Sistema Multi-IA"
       }))
     }
 
@@ -150,7 +462,7 @@ async function handleRoute(request, { params }) {
       
       if (!body.message) {
         return handleCORS(NextResponse.json(
-          { error: "Message is required" }, 
+          { error: "Mensagem é obrigatória" }, 
           { status: 400 }
         ))
       }
@@ -172,7 +484,7 @@ async function handleRoute(request, { params }) {
         }
         await db.collection('conversations').insertOne(conversation)
       } catch (dbError) {
-        console.error('Database save error:', dbError)
+        console.error('Erro ao salvar no banco:', dbError)
         // Continue even if DB save fails
       }
 
@@ -185,7 +497,7 @@ async function handleRoute(request, { params }) {
       
       if (!body.code) {
         return handleCORS(NextResponse.json(
-          { error: "Code is required" }, 
+          { error: "Código é obrigatório" }, 
           { status: 400 }
         ))
       }
@@ -209,7 +521,7 @@ async function handleRoute(request, { params }) {
       } catch (error) {
         return handleCORS(NextResponse.json({
           success: false,
-          error: 'Failed to create preview'
+          error: 'Falha ao criar preview'
         }, { status: 500 }))
       }
     }
@@ -232,36 +544,36 @@ async function handleRoute(request, { params }) {
       const templates = [
         {
           id: 'todo-app',
-          name: 'Todo Application',
-          description: 'A complete todo app with CRUD operations',
+          name: 'Aplicação de Tarefas',
+          description: 'Um app completo de tarefas com operações CRUD',
           type: 'fullstack',
           tags: ['React', 'Node.js', 'MongoDB']
         },
         {
           id: 'dashboard',
-          name: 'Analytics Dashboard',
-          description: 'Dashboard with charts and data visualization',
+          name: 'Dashboard de Analytics',
+          description: 'Dashboard com gráficos e visualização de dados',
           type: 'frontend',
-          tags: ['React', 'Charts', 'Tailwind']
+          tags: ['React', 'Gráficos', 'Tailwind']
         },
         {
           id: 'landing-page',
-          name: 'SaaS Landing Page',
-          description: 'Modern landing page with hero section and features',
+          name: 'Landing Page SaaS',
+          description: 'Landing page moderna com seção hero e recursos',
           type: 'frontend',
-          tags: ['React', 'Tailwind', 'Responsive']
+          tags: ['React', 'Tailwind', 'Responsivo']
         },
         {
           id: 'chat-app',
-          name: 'Real-time Chat',
-          description: 'Chat application with real-time messaging',
+          name: 'Chat em Tempo Real',
+          description: 'Aplicação de chat com mensagens em tempo real',
           type: 'fullstack',
           tags: ['React', 'Socket.io', 'MongoDB']
         },
         {
           id: 'blog-platform',
-          name: 'Blog Platform',
-          description: 'Blog with markdown support and CMS',
+          name: 'Plataforma de Blog',
+          description: 'Blog com suporte a markdown e CMS',
           type: 'fullstack',
           tags: ['React', 'Markdown', 'CMS']
         }
@@ -272,14 +584,14 @@ async function handleRoute(request, { params }) {
 
     // Route not found
     return handleCORS(NextResponse.json(
-      { error: `Route ${route} not found` }, 
+      { error: `Rota ${route} não encontrada` }, 
       { status: 404 }
     ))
 
   } catch (error) {
-    console.error('API Error:', error)
+    console.error('Erro na API:', error)
     return handleCORS(NextResponse.json(
-      { error: "Internal server error" }, 
+      { error: "Erro interno do servidor" }, 
       { status: 500 }
     ))
   }
