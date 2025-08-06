@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
+import OpenAI from 'openai'
 
 // MongoDB connection
 let client
@@ -14,6 +15,11 @@ async function connectToMongo() {
   }
   return db
 }
+
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 // Helper function to handle CORS
 function handleCORS(response) {
@@ -29,6 +35,97 @@ export async function OPTIONS() {
   return handleCORS(new NextResponse(null, { status: 200 }))
 }
 
+// AI Code Generation Service
+async function generateCode(prompt, projectType, conversationHistory = []) {
+  const systemPrompts = {
+    component: `You are an expert React developer. Generate clean, modern React components using:
+- Functional components with hooks
+- Tailwind CSS for styling
+- TypeScript when appropriate
+- Best practices for accessibility
+- Clean, readable code
+
+Always provide working, complete code that can be used immediately.`,
+
+    fullstack: `You are an expert full-stack developer. Generate complete applications with:
+- React frontend with modern hooks
+- Node.js/Express backend APIs
+- MongoDB database schemas
+- Proper error handling
+- Security best practices
+- Clean architecture
+
+Provide both frontend and backend code.`,
+
+    frontend: `You are an expert frontend developer. Create beautiful, responsive web applications using:
+- Modern React with hooks
+- Tailwind CSS or styled-components
+- Responsive design
+- Performance optimization
+- Accessibility standards
+
+Focus on user experience and visual appeal.`,
+
+    backend: `You are an expert backend developer. Create robust API services with:
+- Node.js/Express servers
+- MongoDB database operations
+- Proper error handling
+- Input validation
+- Security measures
+- RESTful design principles
+
+Provide complete, production-ready backend code.`
+  }
+
+  const contextMessages = conversationHistory.map(msg => ({
+    role: msg.type === 'user' ? 'user' : 'assistant',
+    content: msg.content
+  }))
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4-turbo-preview",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompts[projectType] || systemPrompts.component
+        },
+        ...contextMessages,
+        {
+          role: "user",
+          content: `${prompt}\n\nPlease provide:\n1. A brief explanation of what you're building\n2. Complete, working code\n3. Any setup instructions if needed`
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 3000,
+    })
+
+    const response = completion.choices[0].message.content
+    
+    // Extract code blocks from the response
+    const codeBlocks = response.match(/```[\s\S]*?```/g) || []
+    const code = codeBlocks.length > 0 ? 
+      codeBlocks.map(block => block.replace(/```[\w]*\n?/, '').replace(/\n?```$/, '')).join('\n\n') : 
+      ''
+    
+    // Extract explanation (text before first code block)
+    const explanation = response.split('```')[0].trim()
+
+    return {
+      success: true,
+      explanation: explanation || response,
+      code: code || response,
+      model: 'gpt-4-turbo'
+    }
+  } catch (error) {
+    console.error('OpenAI API Error:', error)
+    return {
+      success: false,
+      error: error.message || 'Failed to generate code'
+    }
+  }
+}
+
 // Route handler function
 async function handleRoute(request, { params }) {
   const { path = [] } = params
@@ -38,47 +135,139 @@ async function handleRoute(request, { params }) {
   try {
     const db = await connectToMongo()
 
-    // Root endpoint - GET /api/root (since /api/ is not accessible with catch-all)
-    if (route === '/root' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: "Hello World" }))
-    }
-    // Root endpoint - GET /api/root (since /api/ is not accessible with catch-all)
+    // Root endpoint
     if (route === '/' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: "Hello World" }))
+      return handleCORS(NextResponse.json({ 
+        message: "AI Code Generator API",
+        status: "running",
+        services: ["OpenAI GPT-4", "MongoDB", "Code Generation"]
+      }))
     }
 
-    // Status endpoints - POST /api/status
-    if (route === '/status' && method === 'POST') {
+    // Generate code endpoint
+    if (route === '/generate' && method === 'POST') {
       const body = await request.json()
       
-      if (!body.client_name) {
+      if (!body.message) {
         return handleCORS(NextResponse.json(
-          { error: "client_name is required" }, 
+          { error: "Message is required" }, 
           { status: 400 }
         ))
       }
 
-      const statusObj = {
-        id: uuidv4(),
-        client_name: body.client_name,
-        timestamp: new Date()
+      const result = await generateCode(
+        body.message, 
+        body.projectType || 'component',
+        body.conversationHistory || []
+      )
+
+      // Save conversation to database
+      try {
+        const conversation = {
+          id: uuidv4(),
+          message: body.message,
+          projectType: body.projectType || 'component',
+          result: result,
+          timestamp: new Date()
+        }
+        await db.collection('conversations').insertOne(conversation)
+      } catch (dbError) {
+        console.error('Database save error:', dbError)
+        // Continue even if DB save fails
       }
 
-      await db.collection('status_checks').insertOne(statusObj)
-      return handleCORS(NextResponse.json(statusObj))
+      return handleCORS(NextResponse.json(result))
     }
 
-    // Status endpoints - GET /api/status
-    if (route === '/status' && method === 'GET') {
-      const statusChecks = await db.collection('status_checks')
+    // Preview generation endpoint
+    if (route === '/preview' && method === 'POST') {
+      const body = await request.json()
+      
+      if (!body.code) {
+        return handleCORS(NextResponse.json(
+          { error: "Code is required" }, 
+          { status: 400 }
+        ))
+      }
+
+      // For now, return a simple preview URL
+      // In a full implementation, you'd create a sandboxed preview environment
+      const previewId = uuidv4()
+      
+      try {
+        await db.collection('previews').insertOne({
+          id: previewId,
+          code: body.code,
+          timestamp: new Date()
+        })
+        
+        return handleCORS(NextResponse.json({
+          success: true,
+          previewUrl: `/preview/${previewId}`,
+          previewId: previewId
+        }))
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          success: false,
+          error: 'Failed to create preview'
+        }, { status: 500 }))
+      }
+    }
+
+    // Get conversations history
+    if (route === '/conversations' && method === 'GET') {
+      const conversations = await db.collection('conversations')
         .find({})
-        .limit(1000)
+        .sort({ timestamp: -1 })
+        .limit(50)
         .toArray()
 
-      // Remove MongoDB's _id field from response
-      const cleanedStatusChecks = statusChecks.map(({ _id, ...rest }) => rest)
+      const cleanedConversations = conversations.map(({ _id, ...rest }) => rest)
       
-      return handleCORS(NextResponse.json(cleanedStatusChecks))
+      return handleCORS(NextResponse.json(cleanedConversations))
+    }
+
+    // Templates endpoint
+    if (route === '/templates' && method === 'GET') {
+      const templates = [
+        {
+          id: 'todo-app',
+          name: 'Todo Application',
+          description: 'A complete todo app with CRUD operations',
+          type: 'fullstack',
+          tags: ['React', 'Node.js', 'MongoDB']
+        },
+        {
+          id: 'dashboard',
+          name: 'Analytics Dashboard',
+          description: 'Dashboard with charts and data visualization',
+          type: 'frontend',
+          tags: ['React', 'Charts', 'Tailwind']
+        },
+        {
+          id: 'landing-page',
+          name: 'SaaS Landing Page',
+          description: 'Modern landing page with hero section and features',
+          type: 'frontend',
+          tags: ['React', 'Tailwind', 'Responsive']
+        },
+        {
+          id: 'chat-app',
+          name: 'Real-time Chat',
+          description: 'Chat application with real-time messaging',
+          type: 'fullstack',
+          tags: ['React', 'Socket.io', 'MongoDB']
+        },
+        {
+          id: 'blog-platform',
+          name: 'Blog Platform',
+          description: 'Blog with markdown support and CMS',
+          type: 'fullstack',
+          tags: ['React', 'Markdown', 'CMS']
+        }
+      ]
+
+      return handleCORS(NextResponse.json(templates))
     }
 
     // Route not found
