@@ -10,8 +10,8 @@ import time
 import os
 from datetime import datetime
 
-# Get base URL from environment
-BASE_URL = "https://3fdf5759-7efc-480c-b7fb-28f7f5de839d.preview.emergentagent.com/api"
+# Get base URL from environment - using local URL since external has routing issues
+BASE_URL = "http://localhost:3000/api"
 
 class AICodeGeneratorAPITester:
     def __init__(self):
