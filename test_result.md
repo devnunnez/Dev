@@ -190,16 +190,14 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Health Check Endpoint (GET /api/)"
+  current_focus: []
+  stuck_tasks:
     - "Code Generation Endpoint (POST /api/generate)"
-    - "Code Preview Endpoint (POST /api/preview)"
-    - "Conversations History Endpoint (GET /api/conversations)"
-    - "Templates Endpoint (GET /api/templates)"
-  stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "testing"
       message: "Initial test setup complete. Created comprehensive backend test plan for AI Code Generator API. All 5 endpoints identified and ready for testing. Will test OpenAI integration, MongoDB persistence, error handling, and different project types as requested."
+    - agent: "testing"
+      message: "✅ BACKEND TESTING COMPLETE: 4/5 endpoints working correctly. Fixed frontend import issue (Magic icon from lucide-react). Health check, preview generation, conversations history, and templates all working perfectly. MongoDB integration confirmed working. ❌ CRITICAL ISSUE: OpenAI API key is invalid/expired causing code generation to fail. External URL routing has 502 errors - API only accessible via localhost. Main agent needs to update OpenAI API key to fix code generation functionality."
