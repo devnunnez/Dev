@@ -107,63 +107,78 @@ user_problem_statement: "Test the AI Code Generator backend API that I just buil
 backend:
   - task: "Health Check Endpoint (GET /api/)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "testing"
           comment: "Initial task setup - needs testing for basic health check endpoint"
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Health check endpoint working correctly. Returns proper JSON with message, status, and services fields. Status code 200. API accessible at localhost:3000/api (external URL has routing issues with 502 errors)"
 
   - task: "Code Generation Endpoint (POST /api/generate)"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/app/api/[[...path]]/route.js"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "testing"
           comment: "Initial task setup - needs comprehensive testing with different project types, OpenAI integration, and MongoDB saving"
+        - working: false
+          agent: "testing"
+          comment: "❌ CRITICAL ISSUE: OpenAI API key is invalid/expired. Getting '401 Incorrect API key provided' error. Backend implementation is correct - handles all project types (component, fullstack, frontend, backend), proper error handling for missing parameters (returns 400 with 'Message is required'), and MongoDB conversation saving works. The issue is with the API key configuration."
 
   - task: "Code Preview Endpoint (POST /api/preview)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "testing"
           comment: "Initial task setup - needs testing for code preview generation and database storage"
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Preview generation working correctly. Returns proper JSON with success, previewUrl, and previewId fields. Successfully saves preview data to MongoDB. Proper error handling for missing code parameter (returns 400 with 'Code is required')"
 
   - task: "Conversations History Endpoint (GET /api/conversations)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "testing"
           comment: "Initial task setup - needs testing for conversation retrieval from MongoDB"
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Conversations history working correctly. Successfully retrieves conversations from MongoDB (found 4 existing conversations). Returns proper array with conversation structure including id, message, projectType, result, and timestamp fields. MongoDB _id field properly cleaned from response"
 
   - task: "Templates Endpoint (GET /api/templates)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "low"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "testing"
           comment: "Initial task setup - needs testing for static template data return"
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Templates endpoint working correctly. Returns 5 templates with proper structure (id, name, description, type, tags). All expected templates present: todo-app, dashboard, landing-page, chat-app, blog-platform"
 
 frontend:
   # No frontend testing required as per instructions
