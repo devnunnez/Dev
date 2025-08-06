@@ -101,3 +101,90 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Test the AI Code Generator backend API that I just built. Please test these endpoints comprehensively: GET /api/, POST /api/generate, POST /api/preview, GET /api/conversations, GET /api/templates. Key things to verify: OpenAI API integration, MongoDB connection and data saving, error handling, response format, different project types."
+
+backend:
+  - task: "Health Check Endpoint (GET /api/)"
+    implemented: true
+    working: "NA"
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "testing"
+          comment: "Initial task setup - needs testing for basic health check endpoint"
+
+  - task: "Code Generation Endpoint (POST /api/generate)"
+    implemented: true
+    working: "NA"
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "testing"
+          comment: "Initial task setup - needs comprehensive testing with different project types, OpenAI integration, and MongoDB saving"
+
+  - task: "Code Preview Endpoint (POST /api/preview)"
+    implemented: true
+    working: "NA"
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "testing"
+          comment: "Initial task setup - needs testing for code preview generation and database storage"
+
+  - task: "Conversations History Endpoint (GET /api/conversations)"
+    implemented: true
+    working: "NA"
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "testing"
+          comment: "Initial task setup - needs testing for conversation retrieval from MongoDB"
+
+  - task: "Templates Endpoint (GET /api/templates)"
+    implemented: true
+    working: "NA"
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "testing"
+          comment: "Initial task setup - needs testing for static template data return"
+
+frontend:
+  # No frontend testing required as per instructions
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Health Check Endpoint (GET /api/)"
+    - "Code Generation Endpoint (POST /api/generate)"
+    - "Code Preview Endpoint (POST /api/preview)"
+    - "Conversations History Endpoint (GET /api/conversations)"
+    - "Templates Endpoint (GET /api/templates)"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "Initial test setup complete. Created comprehensive backend test plan for AI Code Generator API. All 5 endpoints identified and ready for testing. Will test OpenAI integration, MongoDB persistence, error handling, and different project types as requested."
